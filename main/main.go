@@ -1,7 +1,10 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
 
 	"github.com/kizitonzeka/urlshortener"
@@ -19,15 +22,18 @@ func main() {
 
 	_ = mapHandler
 
-	// Build the YAMLHandler using the mapHandler as the
-	// fallback
-	yaml := `
-- path: /urlshort
-  url: https://github.com/gophercises/urlshort
-- path: /urlshort-final
-  url: https://github.com/gophercises/urlshort/tree/solution
-`
-	yamlHandler, err := urlshortener.YAMLHandler([]byte(yaml), mux)
+	y := flag.String("yaml", "urls.yaml", " use yaml to parse in urls")
+
+	flag.Parse()
+
+	content, err := ioutil.ReadFile(*y)
+
+	if err != nil {
+		log.Printf("Error reading file: %v", err)
+		return
+	}
+
+	yamlHandler, err := urlshortener.YAMLHandler(content, mux)
 	if err != nil {
 		panic(err)
 	}
