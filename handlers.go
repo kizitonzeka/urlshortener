@@ -1,6 +1,7 @@
 package urlshortener
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -8,11 +9,16 @@ import (
 )
 
 type yamlBody struct {
-	Path string `yaml:"path"`
-	URL  string `yaml:"url"`
+	YamlPath string `yaml:"path"`
+	YamlURL  string `yaml:"url"`
 }
 
-func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.HandlerFunc {
+type jsonBody struct {
+	JsonPath string `json:"path"`
+	JsonURL  string `json:"url"`
+}
+
+func urlShortnerHandler(pathsToUrls map[string]string, fallback http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		path := r.URL.Path
@@ -32,28 +38,32 @@ func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.Handl
 
 func YAMLHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
 	// create a slice of yaml body to get unmarshalled objects
-	var yb []yamlBody
-	err := yaml.Unmarshal([]byte(yml), &yb)
+	var yData []yamlBody
+	err := yaml.Unmarshal([]byte(yml), &yData)
+	if err != nil {
+		log.Printf("cannot unmarshal data: %v", err)
+		return nil, err
+	}
+	// create a map to match the path entered
+	pathurls := make(map[string]string)
+	for _, v := range yData {
+		pathurls[v.YamlPath] = v.YamlURL
+	}
+	return urlShortnerHandler(pathurls, fallback), nil
+}
+
+func JSONHandler(jsonFile []byte, fallback http.Handler) (http.HandlerFunc, error) {
+	var jData []jsonBody
+
+	err := json.Unmarshal(jsonFile, &jData)
 	if err != nil {
 		log.Printf("cannot unmarshal data: %v", err)
 		return nil, err
 	}
 
-	// create a map to match the path entered
 	pathurls := make(map[string]string)
-
-	for _, v := range yb {
-		pathurls[v.Path] = v.URL
+	for _, v := range jData {
+		pathurls[v.JsonPath] = v.JsonURL
 	}
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-
-		if dest, ok := pathurls[path]; ok {
-			http.Redirect(w, r, dest, http.StatusFound)
-			return
-		}
-
-		fallback.ServeHTTP(w, r)
-	}, nil
+	return urlShortnerHandler(pathurls, fallback), nil
 }
